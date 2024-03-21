@@ -2,12 +2,12 @@
 [arXiv](TBD) | [BibTeX](#bibtex)
 
 
-<p align="center">
+<!-- <p align="center">
 <img src=assets/results.gif />
-</p>
+</p> -->
 
 <p align="center">
-<img src=assets/modelfigure.png />
+<img src=assets/cover_adabm.png />
 </p>
 
 
@@ -42,9 +42,11 @@ sh run.sh edsr 0 4 4 # gpu_id a_bit w_bit
 
 ```
 sh run.sh edsr_eval 0 4 4 # gpu_id a_bit w_bit 
+sh run.sh edsr_eval_own 0 4 4 # gpu_id a_bit w_bit 
 ```
 
 > set `--pre_train` to the saved model path for testing model.
+> set `--test_own` to the own image path for testing.
 
 More running scripts can be found in `run.sh`. 
 
@@ -63,3 +65,11 @@ Our implementation is based on [EDSR(PyTorch)](https://github.com/thstkdgus35/ED
  - [ ] environment file
 
 ## BibTeX
+```
+@InProceedings{Hong_2024_CVPR,
+    author    = {Hong, Cheeun and Lee, Kyoung Mu},
+    title     = {AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    year      = {2024}
+}
+```
