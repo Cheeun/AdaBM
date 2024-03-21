@@ -1,4 +1,6 @@
 # AdaBM
+AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution
+
 [arXiv](TBD) | [BibTeX](#bibtex)
 
 
@@ -12,14 +14,15 @@
 
 
 
-## Environment
+## Requirements
 A suitable [conda](https://conda.io/) environment named `adabm` can be created and activated with:
 ```
 conda env create -f environment.yaml
 conda activate adabm
 ```
 
-## Dataset Preparation
+## Preparation
+### Dataset
 Please download DIV2K datasets from [here](https://cv.snu.ac.kr/research/EDSR/DIV2K.tar) for training and [benchmark datasets](https://cv.snu.ac.kr/research/EDSR/benchmark.tar) for testing.
 Then, organize the dataset directory as follows:
 
@@ -29,16 +32,20 @@ datasets
   -DIV2K
 ```
 
+### Pretrained Models
+Please download the pretrained models from [here](TBD) and place them in `pretrained_model`.
+
+
 
 ## Usage
 
-* How to train
+### How to train
 
 ```
 sh run.sh edsr 0 4 4 # gpu_id a_bit w_bit 
 ```
 
-* How to test
+### How to test
 
 ```
 sh run.sh edsr_eval 0 4 4 # gpu_id a_bit w_bit 
