@@ -2,7 +2,6 @@ DATA_DIR=/mnt/disk1/cheeun914/datasets/
 scale=4
 
 # sh run.sh edsr 5 4 4
-# sh run.sh edsr 4,5 4 4 4
 edsr() {
     CUDA_VISIBLE_DEVICES=$1 python main.py \
     --model EDSR --scale $scale \
@@ -11,7 +10,6 @@ edsr() {
     --epochs 10 --test_every 50 --print_every 10 \
     --batch_size_update 2 --batch_size_calib 16 --num_data 100 --patch_size 384 \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --quantizer 'minmax' --ema_beta 0.9 --quantizer_w 'omse' \
     --lr_w 0.01 --lr_a 0.01 --lr_measure_img 0.1 --lr_measure_layer 0.01 \
@@ -29,33 +27,32 @@ edsr_eval() {
     --model EDSR --scale $scale \
     --n_feats 64 --n_resblocks 16 --res_scale 1.0 \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --imgwise --layerwise \
     --test_only \
     --save edsrbaseline_x$scale/w$3a$2-ours_temp3_sd1_test \
-    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-ours_temp3_sd1/model/model_latest.pt \
+    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-ours_temp3_sd1/model/checkpoint.pt \
     --fq \
     --test_patch --test_patch_size 96 --test_step_size 96 \
-    --save_results \
+    # --save_results \
     # 
 }
 
+# sh run.sh edsr_eval_own 4 4 4
 edsr_eval_own() {
     CUDA_VISIBLE_DEVICES=$1 python main.py \
     --model EDSR --scale $scale \
     --n_feats 64 --n_resblocks 16 --res_scale 1.0 \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --imgwise --layerwise \
     --test_only \
     --save edsrbaseline_x$scale/w$3a$2-ours_temp3_sd1_test \
-    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-ours_temp3_sd1/model/model_latest.pt \
+    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-ours_temp3_sd1/model/checkpoint.pt \
     --fq \
     --test_patch --test_patch_size 96 --test_step_size 96 \
     --test_own './../../PTQ-SR/src/figure/0014_bicubic.jpg' \
-    --save_results \
+    # --save_results \
     # --test_own './../../PTQ-SR/src/figure/1459_original.png' \
 }
 
@@ -67,7 +64,6 @@ rdn(){
     --epochs 10 --test_every 50 --print_every 10 \
     --batch_size_update 2 --batch_size_calib 16 --num_data 100 --patch_size 256 \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --quantizer 'minmax' --ema_beta 0.9 --quantizer_w 'omse' \
     --lr_w 0.01 --lr_a 0.01 --lr_measure_img 0.1 --lr_measure_layer 0.01 \
@@ -83,7 +79,6 @@ rdn_eval(){
     CUDA_VISIBLE_DEVICES=$1 python main.py \
     --model RDN --scale $scale \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --imgwise --layerwise \
     --test_only \
@@ -95,7 +90,7 @@ rdn_eval(){
     # 
 }
 
-
+# sh run.sh srresnet 4 4 4
 srresnet() {
     CUDA_VISIBLE_DEVICES=$1 python main.py \
     --model SRResNet --scale $scale \
@@ -104,7 +99,6 @@ srresnet() {
     --epochs 10 --test_every 50 --print_every 10 \
     --batch_size_update 2 --batch_size_calib 16 --num_data 100 --patch_size 384 \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --quantizer 'minmax' --ema_beta 0.9 --quantizer_w 'omse' \
     --lr_w 0.01 --lr_a 0.01 --lr_measure_img 0.1 --lr_measure_layer 0.01 \
@@ -122,7 +116,6 @@ srresnet_eval() {
     --model SRResNet --scale $scale \
     --n_feats 64 --n_resblocks 16 --res_scale 1.0 \
     --data_test Set5 --dir_data $DATA_DIR \
-    --n_GPUs 1 \
     --quantize_a $2 --quantize_w $3 \
     --imgwise --layerwise \
     --test_only \

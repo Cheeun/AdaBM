@@ -95,9 +95,11 @@ class ResBlock(nn.Module):
         res += residual
 
         if feat is None:
-            feat = res / torch.norm(res, p=2) / (res.shape[1]*res.shape[2]*res.shape[3])
+            # feat = res / torch.norm(res, p=2) / (res.shape[1]*res.shape[2]*res.shape[3])
+            feat = res / torch.norm(res, p=2)
         else:
-            feat = torch.cat([feat,  res / torch.norm(res, p=2) / (res.shape[1]*res.shape[2]*res.shape[3])]) 
+            # feat = torch.cat([feat,  res / torch.norm(res, p=2) / (res.shape[1]*res.shape[2]*res.shape[3])]) 
+            feat = torch.cat([feat,  res / torch.norm(res, p=2)]) 
 
         if self.args.imgwise:
             return [res, feat, bit, bit_img]

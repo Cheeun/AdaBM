@@ -1,8 +1,5 @@
 import argparse
 
-########## TODO
-# Erase Unnecessary args
-
 parser = argparse.ArgumentParser(description='EDSR and MDSR')
 
 
@@ -158,12 +155,14 @@ parser.add_argument('--lr_w', type=float, default=0.001, help='learning rate')
 parser.add_argument('--lr_a', type=float, default=0.05, help='learning rate')
 parser.add_argument('--lr_measure_layer', type=float, default=0.005, help='learning rate')
 parser.add_argument('--lr_measure_img', type=float, default=0.01, help='learning rate')
-parser.add_argument('--w_bitloss', type=float, default=0.1, help='loss weight')
+parser.add_argument('--w_bitloss', type=float, default=50.0, help='weight for bit loss')
+parser.add_argument('--w_sktloss', type=float, default=10.0, help='weight for skt loss')
 
 parser.add_argument('--test_patch', action='store_true', help='test patch')
 parser.add_argument('--test_patch_size', type=int, default=96, help='test patch size')
 parser.add_argument('--test_step_size', type=int, default=90, help='test step size')
 parser.add_argument('--test_own', type=str, default=None, help='directory for own test image')
+parser.add_argument('--n_parallel', type=int, default=1, help='number of patches for parallel processing')
 
 parser.add_argument('--quantizer', default='minmax', choices=('minmax', 'percentile', 'omse'), help='quantizer to use')
 parser.add_argument('--quantizer_w', default='minmax', choices=('minmax', 'percentile', 'omse'), help='quantizer to use')
@@ -173,6 +172,7 @@ parser.add_argument('--bac_beta', type=float, default=0.5, help='beta for EMA in
 
 parser.add_argument('--img_percentile', type=float, default=10.0, help='clip percentile for u,l that ranges from 0~100')
 parser.add_argument('--layer_percentile', type=float, default=30.0, help='clip percentile for u,l that ranges from 0~100')
+
 args = parser.parse_args()
 
 args.scale = list(map(lambda x: int(x), args.scale.split('+')))

@@ -1,29 +1,27 @@
 import os
+import glob
+import sys
 import math
-from decimal import Decimal
+import time
+import datetime
+import shutil
 
-import utility
+import numpy as np
 
 import torch
 import torch.nn.utils as utils
-from tqdm import tqdm
-
-import numpy as np
-import torch.optim as optim
-import torch.nn.functional as F
-from torchvision.utils import save_image
 from torch.utils.data import Dataset
-import glob
-import sys
+import torch.nn.functional as F
+import torch.optim as optim
 import torch.optim.lr_scheduler as lrs
+from torchvision.utils import save_image
 
-import time
-import datetime
-from model.quantize import QConv2d
-
-import shutil
-
+from decimal import Decimal
+from tqdm import tqdm
 import cv2
+
+import utility
+from model.quantize import QConv2d
 import kornia as K
 
 class Trainer():
@@ -69,8 +67,8 @@ class Trainer():
         
         self.error_last = 1e8
         self.losses = utility.AverageMeter()
-        self.att_losses = utility.AverageMeter()
-        self.nor_losses = utility.AverageMeter()
+        self.skt_losses = utility.AverageMeter()
+        self.pix_losses = utility.AverageMeter()
         self.bit_losses = utility.AverageMeter()
 
         self.num_quant_modules = 0
@@ -132,7 +130,6 @@ class Trainer():
 
         
     def train(self):
-
         if self.epoch > 0:
             if self.args.imgwise or self.args.layerwise:
                 param_name, optimizer, scheduler = self.get_stage_optimizer_scheduler()
@@ -150,7 +147,6 @@ class Trainer():
                     Decimal(lr))
             )
             
-
         self.loss.start_log()
         self.model.train()
         
@@ -230,8 +226,8 @@ class Trainer():
                         v.requires_grad=False
             
             self.bit_losses.reset()
-            self.nor_losses.reset()
-            self.att_losses.reset()
+            self.pix_losses.reset()
+            self.skt_losses.reset()
 
             for batch, (lr, hr, idx_scale,) in enumerate(self.loader_train):
                 lr, hr = self.prepare(lr, hr)
@@ -248,13 +244,13 @@ class Trainer():
                 sr, feat, bit = self.model(lr, idx_scale) 
 
                 loss = 0.0
-                l1_loss = self.loss(sr, sr_t) 
-                loss += l1_loss
+                pix_loss = self.loss(sr, sr_t) 
+                loss += pix_loss
 
-                att_loss = 0.0
-                for block in range(feat.shape[0]):
-                    att_loss += 1e+6 * torch.norm(feat[block]-feat_t[block], p=2) / sr.shape[0]
-                loss += att_loss
+                skt_loss = 0.0
+                for block in range(len(feat)):
+                    skt_loss += self.args.w_sktloss * torch.norm(feat[block]-feat_t[block], p=2) / sr.shape[0] / len(feat)
+                loss += skt_loss
 
                 if self.args.layerwise or self.args.imgwise:
                     average_bit = bit.mean() / self.num_quant_modules
@@ -264,14 +260,14 @@ class Trainer():
                 
                 loss.backward()
 
-                self.nor_losses.update(l1_loss.item(), lr.size(0))
-                display_loss_nor = f'L_1: {self.nor_losses.avg: .3f}'
-                self.att_losses.update(att_loss.item(), lr.size(0))
-                display_loss_att = f'L_f: {self.att_losses.avg: .3f}'
+                self.pix_losses.update(pix_loss.item(), lr.size(0))
+                display_pix_loss = f'L_pix: {self.pix_losses.avg: .3f}'
+                self.skt_losses.update(skt_loss.item(), lr.size(0))
+                display_skt_loss = f'L_skt: {self.skt_losses.avg: .3f}'
 
                 if self.args.layerwise or self.args.imgwise:
                     self.bit_losses.update(bit_loss.item(), lr.size(0))
-                    display_loss_bit = f'L_b: {self.bit_losses.avg: .3f}'
+                    display_bit_loss = f'L_bit: {self.bit_losses.avg: .3f}'
 
                 optimizer.step()
                 timer_model.hold()
@@ -282,9 +278,9 @@ class Trainer():
                         self.ckp.write_log('[{}/{}]\t{} \t{} \t{} [bit:{:.2f}] \t{:.1f}+{:.1f}s'.format(
                             (batch + 1) * self.loader_train.batch_size,
                             len(self.loader_train.dataset),
-                            display_loss_nor,
-                            display_loss_att,
-                            display_loss_bit,
+                            display_pix_loss,
+                            display_skt_loss,
+                            display_bit_loss,
                             display_bit,
                             timer_model.release(),
                             timer_data.release(), 
@@ -293,8 +289,8 @@ class Trainer():
                         self.ckp.write_log('[{}/{}]\t{} \t{} [bit:{:.2f}] \t{:.1f}+{:.1f}s'.format(
                             (batch + 1) * self.loader_train.batch_size,
                             len(self.loader_train.dataset),
-                            display_loss_nor,
-                            display_loss_att,
+                            display_pix_loss,
+                            display_skt_loss,
                             display_bit,
                             timer_model.release(),
                             timer_data.release(), 
@@ -314,33 +310,48 @@ class Trainer():
         self.ckp.write_log('{}'.format(t_string))
     
     def patch_inference(self, model, lr, idx_scale):
-        lr_list, num_h, num_w, h, w = utility.crop(lr[0], self.args.test_patch_size, self.args.test_step_size)
-        sr_list = []
         patch_idx = 0
         tot_bit_image = 0
         patch_h = max(lr.shape[2]//self.args.test_patch_size, 1)
         patch_w = max(lr.shape[3]//self.args.test_patch_size, 1)
         patch_bit = np.zeros((patch_h, patch_w))
+        if self.args.n_parallel!=1: 
+            lr_list, num_h, num_w, h, w = utility.crop_parallel(lr, self.args.test_patch_size, self.args.test_step_size)
+            sr_list = torch.Tensor()
+            for lr_sub_index in range(len(lr_list)// n_parallel + 1):
+                torch.cuda.empty_cache()
+                with torch.no_grad():
+                    sr_sub, feat, bit = self.model(lr_list[lr_sub_index* n_parallel: (lr_sub_index+1)*n_parallel], idx_scale)
+                    sr_sub = utility.quantize(sr_sub, self.args.rgb_range)
+                sr_list = torch.cat([sr_list, sr_sub.cpu()])
+                average_bit = bit.mean() / self.num_quant_modules
+                patch_idx_w = patch_idx % patch_w
+                patch_idx_h = patch_idx // patch_w
+                patch_bit[patch_idx_h, patch_idx_w] = average_bit
 
-        for lr_sub_img in lr_list:
-            torch.cuda.empty_cache()
-            with torch.no_grad():
-                sr_sub, feat, bit = self.model(lr_sub_img.unsqueeze(0), idx_scale)
+                tot_bit_image += average_bit
+                print('{:2d} {:2d}: [avg bits: {:.2f}]'.format(patch_idx_h, patch_idx_w, average_bit))
+                patch_idx += 1
+            sr = utility.combine_parallel(sr_list, num_h, num_w, h, w, self.args.test_patch_size, self.args.test_step_size, self.scale[0])
+        else:
+            lr_list, num_h, num_w, h, w = utility.crop(lr, self.args.test_patch_size, self.args.test_step_size)
+            sr_list = []
+            for lr_sub_img in lr_list:
+                torch.cuda.empty_cache()
+                with torch.no_grad():
+                    sr_sub, feat, bit = self.model(lr_sub_img, idx_scale)
+                    sr_sub = utility.quantize(sr_sub, self.args.rgb_range)
+                sr_list.append(sr_sub)
+                average_bit = bit.mean() / self.num_quant_modules
+                patch_idx_w = patch_idx % patch_w
+                patch_idx_h = patch_idx // patch_w
+                patch_bit[patch_idx_h, patch_idx_w] = average_bit
 
-            average_bit = bit.mean() / self.num_quant_modules
+                tot_bit_image += average_bit
+                print('{:2d} {:2d}: [avg bits: {:.2f}]'.format(patch_idx_h, patch_idx_w, average_bit))
+                patch_idx += 1
+            sr = utility.combine(sr_list, num_h, num_w, h, w, self.args.test_patch_size, self.args.test_step_size, self.scale[0])
 
-            patch_idx_w = patch_idx % patch_w
-            patch_idx_h = patch_idx // patch_w
-            patch_bit[patch_idx_h, patch_idx_w] = average_bit
-
-            tot_bit_image += average_bit
-            print('{:2d} {:2d}: [avg bits: {:.2f}]'.format(patch_idx_h, patch_idx_w, average_bit))
-            sr_sub = utility.quantize(sr_sub, self.args.rgb_range)
-            sr_list.append(sr_sub)
-            patch_idx += 1
-
-        sr = utility.combine(sr_list, num_h, num_w, h, w, self.args.test_patch_size, self.args.test_step_size, self.scale[0])
-        sr = sr.unsqueeze(0) 
         bit = tot_bit_image / patch_idx
 
         return sr, feat, bit
@@ -404,10 +415,13 @@ class Trainer():
                     sr = utility.quantize(sr, self.args.rgb_range)
                     save_list = [sr]
 
+
+                    filename = self.args.test_own.split('/')[-1].split('.')[0]
                     if self.args.save_results:
-                        filename = self.args.test_own.split('/')[-1].split('.')[0]
                         save_name = '{}_x{}_{:.2f}bit'.format(filename, scale, img_bit)
                         self.ckp.save_results('test_own', save_name, save_list)
+
+                    self.ckp.write_log('[{} x{}] Average Bit: {:.2f} '.format(filename, scale, img_bit))
 
             ############################## TEST FOR TEST SET #############################
             if self.args.test_own is None:
@@ -478,7 +492,7 @@ class Trainer():
         self.model.eval()
         self.ckp.write_log('Teacher Evaluation')
 
-        ############################## get_#_params ####################
+        ############################## Num of Params ####################
         n_params = 0
         for k, v in self.model.named_parameters():
             if '_a' not in k and '_w' not in k and 'measure' not in k: # for teacher model

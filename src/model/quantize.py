@@ -47,7 +47,8 @@ class QConv2d(nn.Conv2d):
             self.measure_layer = nn.Parameter(torch.FloatTensor([0]).cuda())
             self.tanh = nn.Tanh()
 
-        self.ema_epoch = torch.ones(1).cuda()
+        self.ema_epoch = 1
+        self.bac_epoch = 1
         self.init = False
 
     def init_qparams_a(self, x, quantizer=None):
@@ -156,38 +157,37 @@ class QConv2d(nn.Conv2d):
 
             # Bit-aware Clipping
             if self.args.bac:
-                do_bac = self.ema_epoch == math.ceil(self.args.num_data / self.args.batch_size_calib) + 1
+                do_bac = self.bac_epoch == 1
                 # Do BaC after init phase ends
-                if do_bac and self.training and not self.to_8bit:
-                    best_score = 1e+10
-                    lower_a = self.lower_a
-                    upper_a = self.upper_a
+                if do_bac:
+                    self.bac_epoch += 1
+                    if self.training and not self.to_8bit:
+                        best_score = 1e+10
+                        lower_a = self.lower_a
+                        upper_a = self.upper_a
 
-                    for i in range(100):
-                        new_lower_a = self.lower_a * (1.0 - i*0.01)
-                        new_upper_a = self.upper_a * (1.0 - i*0.01)
-                        x_q_temp = torch.clamp(x.clone().detach(), min= new_lower_a, max=new_upper_a)
-                        x_q_temp = (x_q_temp - new_lower_a) / (new_upper_a - new_lower_a)
-                        if not self.non_adaptive and self.args.layerwise:
-                            x_q_temp = torch.round(x_q_temp * (2**(self.a_bit+bit_layer_hard) -1)) / (2**(self.a_bit+bit_layer_hard) -1)
-                        else:
-                            x_q_temp = torch.round(x_q_temp * (2**(self.a_bit) -1)) / (2**(self.a_bit) -1)
-                            
-                        x_q_temp = x_q_temp * (new_upper_a - new_lower_a) + new_lower_a
-                        score = (x.clone().detach() - x_q_temp).abs().pow(2.0).mean()
-                        if score < best_score:
-                            best_i = i
-                            best_score = score
-                            lower_a = new_lower_a
-                            upper_a = new_upper_a
-                    
-                    new_lower = self.lower_a * self.args.bac_beta + lower_a * (1-self.args.bac_beta)
-                    new_upper = self.upper_a * self.args.bac_beta + upper_a * (1-self.args.bac_beta)
-                    nn.init.constant_(self.lower_a, new_lower.item())
-                    nn.init.constant_(self.upper_a, new_upper.item())
-
-            if self.training:
-                self.ema_epoch += 1
+                        for i in range(100):
+                            new_lower_a = self.lower_a * (1.0 - i*0.01)
+                            new_upper_a = self.upper_a * (1.0 - i*0.01)
+                            x_q_temp = torch.clamp(x.clone().detach(), min= new_lower_a, max=new_upper_a)
+                            x_q_temp = (x_q_temp - new_lower_a) / (new_upper_a - new_lower_a)
+                            if not self.non_adaptive and self.args.layerwise:
+                                x_q_temp = torch.round(x_q_temp * (2**(self.a_bit+bit_layer_hard) -1)) / (2**(self.a_bit+bit_layer_hard) -1)
+                            else:
+                                x_q_temp = torch.round(x_q_temp * (2**(self.a_bit) -1)) / (2**(self.a_bit) -1)
+                                
+                            x_q_temp = x_q_temp * (new_upper_a - new_lower_a) + new_lower_a
+                            score = (x.clone().detach() - x_q_temp).abs().pow(2.0).mean()
+                            if score < best_score:
+                                best_i = i
+                                best_score = score
+                                lower_a = new_lower_a
+                                upper_a = new_upper_a
+                        
+                        new_lower = self.lower_a * self.args.bac_beta + lower_a * (1-self.args.bac_beta)
+                        new_upper = self.upper_a * self.args.bac_beta + upper_a * (1-self.args.bac_beta)
+                        nn.init.constant_(self.lower_a, new_lower.item())
+                        nn.init.constant_(self.upper_a, new_upper.item())
 
             torch.cuda.empty_cache()
 

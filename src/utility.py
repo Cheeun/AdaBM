@@ -164,7 +164,6 @@ class checkpoint():
             plt.xlabel('Epochs')
             plt.ylabel('PSNR')
             plt.grid(True)
-            # plt.savefig(self.get_path('test_{}.pdf'.format(d)))
             plt.savefig(self.get_path('test_{}.png'.format(d)))
 
             plt.close(fig)
@@ -186,7 +185,6 @@ class checkpoint():
             plt.xlabel('Epochs')
             plt.ylabel('Average Bit')
             plt.grid(True)
-            # plt.savefig(self.get_path('test_{}_bit.pdf'.format(d)))
             plt.savefig(self.get_path('test_{}_bit.png'.format(d)))
 
             plt.close(fig)
@@ -330,15 +328,7 @@ def calc_psnr(sr, hr, scale, rgb_range, dataset=None):
 
 
 def crop(img, crop_sz, step):
-    # TODO check functionality
-    n_channels = len(img.shape)
-    if n_channels == 2:
-        h, w = img.shape
-    elif n_channels == 3:
-        c, h, w = img.shape
-    else:
-        raise ValueError('Wrong image shape - {}'.format(n_channels))
-
+    b, c, h, w = img.shape
     h_space = np.arange(0, max(h - crop_sz,0) + 1, step)
     w_space = np.arange(0, max(w - crop_sz,0) + 1, step)
     index = 0
@@ -350,54 +340,68 @@ def crop(img, crop_sz, step):
         for y in w_space:
             num_w += 1
             index += 1
-            if n_channels == 2:
-                crop_img = img[x:x + crop_sz, y:y + crop_sz]
-            else:
-                if x == h_space[-1]:
-                    if y == w_space[-1]:
-                        crop_img = img[:, x:h, y:w]
-                    else:
-                        crop_img = img[:, x:h, y:y + crop_sz]
-                elif y == w_space[-1]:
-                    crop_img = img[:, x:x + crop_sz, y:w]
-                else:    
-                    crop_img = img[:, x:x + crop_sz, y:y + crop_sz]
+            if x == h_space[-1]: # include margin in bottom border
+                if y == w_space[-1]:
+                    crop_img = img[:, :, x:h, y:w]
+                else:
+                    crop_img = img[:, :, x:h, y:y + crop_sz]
+            elif y == w_space[-1]: # include margin in right border
+                crop_img = img[:,:, x:x + crop_sz, y:w]
+            else:    
+                crop_img = img[:,:, x:x + crop_sz, y:y + crop_sz]
             lr_list.append(crop_img)
     return lr_list, num_h, num_w, h, w
 
+def crop_parallel(img, crop_sz, step):
+    # remaining borders are clipped
+    b, c, h, w = img.shape
+    h_space = np.arange(0, h - crop_sz + 1, step)
+    w_space = np.arange(0, w - crop_sz + 1, step)
+    index = 0
+    num_h = 0
+    lr_list=torch.Tensor().to(img.device)
+    for x in h_space:
+        num_h += 1
+        num_w = 0
+        for y in w_space:
+            num_w += 1
+            index += 1
+            crop_img = img[:, :, x:x + crop_sz, y:y + crop_sz]
+            lr_list = torch.cat([lr_list, crop_img])
+    new_h=x + crop_sz # new height after crop
+    new_w=y + crop_sz # new width  after crop
+    return lr_list, num_h, num_w, new_h, new_w
+
 
 def combine(sr_list, num_h, num_w, h, w, patch_size, step, scale):
-    # TODO check functionality
-    # TODO combine takes long for large images
-    
     index=0
-    sr_img = torch.zeros((3, h*scale, w*scale)).cuda()
+    sr_img = torch.zeros((1, 3, h*scale, w*scale)).cuda()
     s = int(((patch_size - step) / 2)*scale)
     index1=0
     index2=0
     if num_h == 1:
         if num_w ==1:
-            sr_img[:,:h*scale,:w*scale]+=sr_list[index][0]
+            sr_img[:,:,:h*scale,:w*scale]+=sr_list[index]
         else:
             for j in range(num_w):
                 y0 = j*step*scale
                 if j==0:
-                    sr_img[:,:,y0:y0+s+step*scale]+=sr_list[index1][0][:,:,:s+step*scale]
+                    sr_img[:,:,:,y0:y0+s+step*scale]+=sr_list[index1][:,:,:,:s+step*scale]
                 elif j==num_w-1:
-                    sr_img[:,:,y0+s:w*scale]+=sr_list[index1][0][:,:,s:]
+                    sr_img[:,:,:,y0+s:w*scale]+=sr_list[index1][:,:,:,s:]
                 else:
-                    sr_img[:,:,y0+s:y0+s+step*scale]+=sr_list[index1][0][:,:,s:s+step*scale]
+                    sr_img[:,:,:,y0+s:y0+s+step*scale]+=sr_list[index1][:,:,:,s:s+step*scale]
                 index1+=1
 
     elif num_w ==1:
         for i in range(num_h):
             x0 = i*step*scale
             if i==0:
-                sr_img[:,x0:x0+s+step*scale,:]+=sr_list[index2][0][:,:s+step*scale,:]
+                sr_img[:,:,x0:x0+s+step*scale,:]+=sr_list[index2][:,:,:s+step*scale,:]
             elif i==num_h-1:
-                sr_img[:,x0+s:h*scale,:]+=sr_list[index2][0][:,s:,:]
+                sr_img[:,:,x0+s:h*scale,:]+=sr_list[index2][:,:,s:,:]
             else:
-                sr_img[:,x0+s:x0+s+step*scale,:]+=sr_list[index2][0][:,s:s+step*scale,:]
+                sr_img[:,:,x0+s:x0+s+step*scale,:]+=sr_list[index2][:,:,s:s+step*scale,:]
             index2+=1
 
     else:
@@ -408,27 +412,49 @@ def combine(sr_list, num_h, num_w, h, w, patch_size, step, scale):
 
                 if i==0:
                     if j==0:
-                        sr_img[:,x0:x0+s+step*scale,y0:y0+s+step*scale]+=sr_list[index][0][:,:s+step*scale, :s+step*scale]
+                        sr_img[:,:,x0:x0+s+step*scale,y0:y0+s+step*scale]+=sr_list[index][:,:,:s+step*scale, :s+step*scale]
                     elif j==num_w-1:
-                        sr_img[:,x0:x0+s+step*scale,y0+s:w*scale]+=sr_list[index][0][:,:s+step*scale,s:]
+                        sr_img[:,:,x0:x0+s+step*scale,y0+s:w*scale]+=sr_list[index][:,:,:s+step*scale,s:]
                     else:
-                        sr_img[:,x0:x0+s+step*scale,y0+s:y0+s+step*scale]+=sr_list[index][0][:,:s+step*scale, s:s+step*scale]
+                        sr_img[:,:,x0:x0+s+step*scale,y0+s:y0+s+step*scale]+=sr_list[index][:,:,:s+step*scale, s:s+step*scale]
                 elif j==0:
                     if i==num_h-1:
-                        sr_img[:,x0+s:h*scale,y0:y0+s+step*scale]+=sr_list[index][0][:,s:,:s+step*scale]
+                        sr_img[:,:,x0+s:h*scale,y0:y0+s+step*scale]+=sr_list[index][:,:,s:,:s+step*scale]
                     else:
-                        sr_img[:,x0+s:x0+s+step*scale,y0:y0+s+step*scale]+=sr_list[index][0][:,s:s+step*scale, :s+step*scale]
+                        sr_img[:,:,x0+s:x0+s+step*scale,y0:y0+s+step*scale]+=sr_list[index][:,:,s:s+step*scale, :s+step*scale]
                 elif i==num_h-1:
                     if j==num_w-1:
-                        sr_img[:,x0+s:h*scale,y0+s:w*scale]+=sr_list[index][0][:,s:,s:]
+                        sr_img[:,:,x0+s:h*scale,y0+s:w*scale]+=sr_list[index][:,:,s:,s:]
                     else:
-                        sr_img[:,x0+s:h*scale,y0+s:y0+s+step*scale]+=sr_list[index][0][:,s:,s:s+step*scale]
+                        sr_img[:,:,x0+s:h*scale,y0+s:y0+s+step*scale]+=sr_list[index][:,:,s:,s:s+step*scale]
                 elif j==num_w-1:
-                    sr_img[:,x0+s:x0+s+step*scale,y0+s:w*scale]+=sr_list[index][0][:,s:s+step*scale,s:]
+                    sr_img[:,:,x0+s:x0+s+step*scale,y0+s:w*scale]+=sr_list[index][:,:,s:s+step*scale,s:]
                 else:
-                    sr_img[:,x0+s:x0+s+step*scale,y0+s:y0+s+step*scale]+=sr_list[index][0][:,s:s+step*scale, s:s+step*scale]
+                    sr_img[:,:,x0+s:x0+s+step*scale,y0+s:y0+s+step*scale]+=sr_list[index][:,:,s:s+step*scale, s:s+step*scale]
                 
                 index+=1
 
     return sr_img
 
+
+def combine_parallel(sr_list, num_h, num_w, h, w, patch_size, step, scale):
+    # remaining borders are clipped
+    index=0
+    w = w * scale
+    h = h * scale
+    patch_size = patch_size * scale
+    step = step * scale
+
+    sr_img = torch.zeros((1, 3, h, w)).to(sr_list[0].device)
+    for i in range(num_h):
+        for j in range(num_w):
+            sr_img[:, :, i*step:i*step+patch_size, j*step:j*step+patch_size] += sr_list[index]
+            index+=1
+
+    # mean the overlap region
+    for j in range(1,num_w):
+        sr_img[:, :, :, j*step:j*step+(patch_size-step)]/=2
+    for i in range(1,num_h):
+        sr_img[:, :, i*step:i*step+(patch_size-step), :]/=2
+
+    return sr_img

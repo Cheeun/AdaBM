@@ -61,10 +61,10 @@ class Model(nn.Module):
                 return forward_function(x)
 
     def save(self, apath, epoch, is_best=False):
-        save_dirs = [os.path.join(apath, 'model_latest.pt')]
+        save_dirs = [os.path.join(apath, 'checkpoint.pt')]
 
         if is_best:
-            save_dirs.append(os.path.join(apath, 'model_best.pt'))
+            save_dirs.append(os.path.join(apath, 'checkpoint_bestpsnr.pt'))
         if self.save_models:
             save_dirs.append(
                 os.path.join(apath, 'model_{}.pt'.format(epoch))
