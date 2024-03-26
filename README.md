@@ -21,7 +21,6 @@ A suitable [conda](https://conda.io/) environment named `adabm` can be created a
 conda env create -f environment.yaml
 conda activate adabm
 ```
-> * python 3.6
 
 ## Preparation
 ### Dataset
@@ -70,9 +69,8 @@ More running scripts can be found in `run.sh`.
 ## Comments
 Our implementation is based on [EDSR(PyTorch)](https://github.com/thstkdgus35/EDSR-PyTorch).
 
-#### Coming Soon...
- - [ ] environment file
- - [ ] remove hr directory
+<!-- #### Coming Soon...
+ - [ ] remove hr directory -->
 
 ## BibTeX
 If you found our implementation useful, please consider citing our paper:
