@@ -239,7 +239,7 @@ class Trainer():
                 with torch.no_grad():
                     self.set_bit(teacher=True)
                     sr_t, feat_t, bit_t = self.model(lr, idx_scale)
-
+                
                 self.set_bit(teacher=False)
                 sr, feat, bit = self.model(lr, idx_scale) 
 
@@ -299,10 +299,10 @@ class Trainer():
             self.loss.end_log(len(self.loader_train))
             self.error_last = self.loss.log[-1, -1]
 
+
             scheduler.step()
 
         self.epoch += 1
-
 
         end_time = time.time()
         time_interval = end_time - start_time

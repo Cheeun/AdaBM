@@ -1,7 +1,8 @@
 # AdaBM
-#### AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution
+This repository includes the official implementation of the paper [**AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution**](TBD) (CVPR2024).
 
-[arXiv](TBD) | [BibTeX](#bibtex)
+
+<!-- [arXiv](TBD) | [BibTeX](#bibtex) -->
 
 
 <!-- <p align="center">
@@ -20,6 +21,7 @@ A suitable [conda](https://conda.io/) environment named `adabm` can be created a
 conda env create -f environment.yaml
 conda activate adabm
 ```
+> * python 3.6
 
 ## Preparation
 ### Dataset
@@ -40,48 +42,48 @@ datasets
 ```
 
 ### Pretrained Models
-Please download the pretrained models from [here](TBD) and place them in `pretrained_model`.
+Please download the pretrained models from [here](https://drive.google.com/drive/folders/1GLuvwy3WWFG2H6iEA6-7tqRj_Jnzcn86?usp=drive_link) and place them in `pretrained_model`.
 
 ## Usage
 
 ### How to train
 
 ```
+sh run.sh edsr 0 6 8 # gpu_id a_bit w_bit 
 sh run.sh edsr 0 4 4 # gpu_id a_bit w_bit 
 ```
 
 ### How to test
 
 ```
-sh run.sh edsr_eval 0 4 4 # gpu_id a_bit w_bit 
-sh run.sh edsr_eval_own 0 4 4 # gpu_id a_bit w_bit 
+sh run.sh edsr_eval 0 6 8 # gpu_id a_bit w_bit 
+sh run.sh edsr_eval 0 4 4 # gpu_id a_bit w_bit
 ```
 
+> * set `--dir_data` to the directory path for datasets. 
 > * set `--pre_train` to the saved model path for testing model. 
-> * the trained model is saved in `experiment` directory or it can be downloaded from [here](TBD).
+> * the trained model is saved in `experiment` directory.
 > * set `--test_own` to the own image path for testing.
 
 More running scripts can be found in `run.sh`. 
 
-
-
 ## Comments
 Our implementation is based on [EDSR(PyTorch)](https://github.com/thstkdgus35/EDSR-PyTorch).
 
-#### Coming Soon
- - [ ] rerun models of paper
- - [ ] check hyperparameters with paper
- - [ ] test checkpoints release
+#### Coming Soon...
  - [ ] environment file
- - [ ] visualization
  - [ ] remove hr directory
 
 ## BibTeX
+If you found our implementation useful, please consider citing our paper:
 ```
 @InProceedings{Hong_2024_CVPR,
-    author    = {Hong, Cheeun and Lee, Kyoung Mu},
+    author    = {Cheeun Hong and Kyoung Mu Lee},
     title     = {AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution},
     booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
     year      = {2024}
 }
 ```
+
+## Contact
+> Email: [cheeun914@snu.ac.kr](cheeun914@snu.ac.kr)

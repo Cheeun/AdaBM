@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 class Round(torch.autograd.Function):
     @staticmethod
@@ -58,13 +59,12 @@ class QConv2d(nn.Conv2d):
             upper_a = torch.max(x).detach().cpu()
 
         elif quantizer == 'percentile':
-            percentile_alpha = 0.99
             try:
-                lower_a = torch.quantile(x.reshape(-1), 1.0 -percentile_alpha).detach().cpu()
-                upper_a = torch.quantile(x.reshape(-1), percentile_alpha).detach().cpu()
+                lower_a = torch.quantile(x.reshape(-1), 1.0-self.args.percentile_alpha).detach().cpu()
+                upper_a = torch.quantile(x.reshape(-1), self.args.percentile_alpha).detach().cpu()
             except:
-                lower_a = np.percentile(x.reshape(-1).detach().cpu(), (1.0 -percentile_alpha)*100.0)
-                upper_a = np.percentile(x.reshape(-1).detach().cpu(), percentile_alpha*100.0)
+                lower_a = np.percentile(x.reshape(-1).detach().cpu(), (1.0-self.args.percentile_alpha)*100.0)
+                upper_a = np.percentile(x.reshape(-1).detach().cpu(), self.args.percentile_alpha*100.0)
 
         elif quantizer == 'omse':
             lower_a = torch.min(x).detach()
@@ -99,11 +99,16 @@ class QConv2d(nn.Conv2d):
 
     def init_qparams_w(self, w, quantizer=None):
         if quantizer == 'minmax':
-            upper_w = torch.max(self.weight).detach()
+            upper_w = torch.max(torch.abs(self.weight)).detach()
+        elif quantizer == 'percentile':
+            try:
+                upper_w = torch.quantile(self.weight.reshape(-1), self.args.percentile_alpha).detach().cpu()
+            except:
+                upper_w = np.percentile(self.weight.reshape(-1).detach().cpu(), self.args.percentile_alpha*100.0)
         elif quantizer == 'omse':
             upper_w = torch.max(self.weight).detach()
             best_score_w = 1e+10
-            for i in range(50): # omse
+            for i in range(50):
                 new_upper_w = upper_w * (1.0 - i*0.01)
                 w_q = torch.clamp(self.weight, min=-new_upper_w, max=new_upper_w).detach()
                 w_q = (w_q + new_upper_w) / (2*new_upper_w )

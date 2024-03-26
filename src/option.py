@@ -166,6 +166,7 @@ parser.add_argument('--n_parallel', type=int, default=1, help='number of patches
 
 parser.add_argument('--quantizer', default='minmax', choices=('minmax', 'percentile', 'omse'), help='quantizer to use')
 parser.add_argument('--quantizer_w', default='minmax', choices=('minmax', 'percentile', 'omse'), help='quantizer to use')
+parser.add_argument('--percentile_alpha', type=float, default=0.99, help='used when quantizer is percentile')
 
 parser.add_argument('--ema_beta', type=float, default=0.9, help='beta for EMA')
 parser.add_argument('--bac_beta', type=float, default=0.5, help='beta for EMA in BaC')
