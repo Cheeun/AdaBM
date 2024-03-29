@@ -194,14 +194,12 @@ class QConv2d(nn.Conv2d):
                         nn.init.constant_(self.lower_a, new_lower.item())
                         nn.init.constant_(self.upper_a, new_upper.item())
 
-            torch.cuda.empty_cache()
-
             # Quantize activations
             x_c = torch.clamp(x, min=self.lower_a, max=self.upper_a)
             x_c2 = (x_c - self.lower_a) / (self.upper_a - self.lower_a)
             x_c2 = x_c2 * (2**a_bit -1)
             x_int = self.round_a(x_c2)
-            x_int = x_int / (2**a_bit -1) 
+            x_int = x_int / (2**a_bit -1)
             x_q = x_int * (self.upper_a - self.lower_a) + self.lower_a
             x = x_q
 

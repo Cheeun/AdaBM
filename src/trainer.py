@@ -25,7 +25,7 @@ from model.quantize import QConv2d
 import kornia as K
 
 class Trainer():
-    def __init__(self, args, loader, my_model, my_loss, ckp):
+    def __init__(self, args, loader, my_model, ckp):
         self.args = args
         self.scale = args.scale
         self.ckp = ckp
@@ -34,7 +34,6 @@ class Trainer():
         self.loader_test = loader.loader_test
 
         self.model = my_model
-        self.loss = my_loss
         self.epoch = 0 
 
         shutil.copyfile('./trainer.py', os.path.join(self.ckp.dir, 'trainer.py'))
@@ -53,20 +52,13 @@ class Trainer():
                 quant_params_measure.append({'params': quant_params_measure_image, 'lr': args.lr_measure_img})
         
             self.optimizer_measure = torch.optim.Adam(quant_params_measure, betas=args.betas, eps=args.epsilon)
-            self.optimizer_a = torch.optim.Adam(quant_params_a, lr=args.lr_a, betas=args.betas, eps=args.epsilon)
-            self.optimizer_w = torch.optim.Adam(quant_params_w, lr=args.lr_w, betas=args.betas, eps=args.epsilon)
-        
-            self.scheduler_measure = lrs.StepLR(self.optimizer_measure, step_size=1, gamma=0.9)
-            self.scheduler_a = lrs.StepLR(self.optimizer_a, step_size=1, gamma=0.9)
-            self.scheduler_w = lrs.StepLR(self.optimizer_w, step_size=1, gamma=0.9)
+            self.scheduler_measure = lrs.StepLR(self.optimizer_measure, step_size=args.step, gamma=args.gamma)
 
-        else:
-            params = [{'params': quant_params_a, 'lr': args.lr_a}, {'params': quant_params_w, 'lr': args.lr_w}]
-            self.optimzer_wa = torch.optim.Adam(params, betas=args.betas, eps=args.epsilon)
-            self.scheduler_wa = lrs.StepLR(self.optimizer_wa, step_size=1, gamma=0.9)
+        self.optimizer_a = torch.optim.Adam(quant_params_a, lr=args.lr_a, betas=args.betas, eps=args.epsilon)
+        self.optimizer_w = torch.optim.Adam(quant_params_w, lr=args.lr_w, betas=args.betas, eps=args.epsilon)
+        self.scheduler_a = lrs.StepLR(self.optimizer_a, step_size=args.step, gamma=args.gamma)
+        self.scheduler_w = lrs.StepLR(self.optimizer_w, step_size=args.step, gamma=args.gamma)
         
-        self.error_last = 1e8
-        self.losses = utility.AverageMeter()
         self.skt_losses = utility.AverageMeter()
         self.pix_losses = utility.AverageMeter()
         self.bit_losses = utility.AverageMeter()
@@ -86,23 +78,31 @@ class Trainer():
                     setattr(m, 'init', True)
             if args.imgwise:
                 setattr(self.model.model, 'init', True)
-
-
     
     def get_stage_optimizer_scheduler(self):
-        # w -> a -> measure
-        if (self.epoch-1) % 3 == 0:
-            param_name = '_w'
-            optimizer = self.optimizer_w
-            scheduler = self.scheduler_w
-        elif (self.epoch-1) % 3 == 1:
-            param_name = '_a'
-            optimizer = self.optimizer_a
-            scheduler = self.scheduler_a
+        if self.args.imgwise or self.args.layerwise:
+            # w -> a -> measure
+            if (self.epoch-1) % 3 == 0:
+                param_name = '_w'
+                optimizer = self.optimizer_w
+                scheduler = self.scheduler_w
+            elif (self.epoch-1) % 3 == 1:
+                param_name = '_a'
+                optimizer = self.optimizer_a
+                scheduler = self.scheduler_a
+            else:
+                param_name = 'measure'
+                optimizer = self.optimizer_measure
+                scheduler = self.scheduler_measure
         else:
-            param_name = 'measure'
-            optimizer = self.optimizer_measure
-            scheduler = self.scheduler_measure
+            if (self.epoch-1) % 2 == 0:
+                param_name = '_w'
+                optimizer = self.optimizer_w
+                scheduler = self.scheduler_w
+            else:
+                param_name = '_a'
+                optimizer = self.optimizer_a
+                scheduler = self.scheduler_a
 
         return param_name, optimizer, scheduler
     
@@ -131,13 +131,7 @@ class Trainer():
         
     def train(self):
         if self.epoch > 0:
-            if self.args.imgwise or self.args.layerwise:
-                param_name, optimizer, scheduler = self.get_stage_optimizer_scheduler()
-            else:
-                optimizer = self.optimzer_wa
-                scheduler = self.scheduler_wa
-                param_name = '_wa'
-
+            param_name, optimizer, scheduler = self.get_stage_optimizer_scheduler()
             epoch_update = 'Update param ' + param_name
             lr = optimizer.state_dict()['param_groups'][0]['lr']
             self.ckp.write_log(
@@ -147,7 +141,6 @@ class Trainer():
                     Decimal(lr))
             )
             
-        self.loss.start_log()
         self.model.train()
         
         timer_data, timer_model = utility.timer(), utility.timer()
@@ -159,8 +152,9 @@ class Trainer():
             for name1, params1 in params:
                 params1.requires_grad=False
 
-            for batch, (lr, hr, idx_scale,) in enumerate(self.loader_init):
-                lr, hr = self.prepare(lr, hr)
+            for batch, (lr, _, idx_scale,) in enumerate(self.loader_init):
+                lr, = self.prepare(lr)
+
                 timer_data.hold()
                 timer_model.tic()
                 torch.cuda.empty_cache()
@@ -197,6 +191,8 @@ class Trainer():
                             m.std_layer.clear()
 
             print('Calibration done!')
+            # self.set_bit(teacher=False)
+
             if self.args.imgwise:
                 print('image-lower:{:.3f}, image-upper:{:.3f}'.format(
                     self.model.model.measure_l.data.item(),
@@ -212,25 +208,18 @@ class Trainer():
                 print(np.mean(bit_layer_list)) 
         else:
             # Update quantization parameters
-            if self.args.imgwise or self.args.layerwise:
-                for k, v in self.model.named_parameters():
-                    if param_name in k:
-                        v.requires_grad=True
-                    else:
-                        v.requires_grad=False
-            else:
-                for k, v in self.model.named_parameters():
-                    if '_a' in k or '_w' in k: 
-                        v.requires_grad=True
-                    else:
-                        v.requires_grad=False
+            for k, v in self.model.named_parameters():
+                if param_name in k:
+                    v.requires_grad=True
+                else:
+                    v.requires_grad=False
             
             self.bit_losses.reset()
             self.pix_losses.reset()
             self.skt_losses.reset()
 
-            for batch, (lr, hr, idx_scale,) in enumerate(self.loader_train):
-                lr, hr = self.prepare(lr, hr)
+            for batch, (lr, _, idx_scale,) in enumerate(self.loader_train):
+                lr, = self.prepare(lr)
                 timer_data.hold()
                 timer_model.tic()
 
@@ -244,7 +233,8 @@ class Trainer():
                 sr, feat, bit = self.model(lr, idx_scale) 
 
                 loss = 0.0
-                pix_loss = self.loss(sr, sr_t) 
+                pix_loss = F.l1_loss(sr, sr_t)
+
                 loss += pix_loss
 
                 skt_loss = 0.0
@@ -296,9 +286,6 @@ class Trainer():
                             timer_data.release(), 
                         ))
                 timer_data.tic()
-            self.loss.end_log(len(self.loader_train))
-            self.error_last = self.loss.log[-1, -1]
-
 
             scheduler.step()
 
@@ -312,27 +299,19 @@ class Trainer():
     def patch_inference(self, model, lr, idx_scale):
         patch_idx = 0
         tot_bit_image = 0
-        patch_h = max(lr.shape[2]//self.args.test_patch_size, 1)
-        patch_w = max(lr.shape[3]//self.args.test_patch_size, 1)
-        patch_bit = np.zeros((patch_h, patch_w))
         if self.args.n_parallel!=1: 
             lr_list, num_h, num_w, h, w = utility.crop_parallel(lr, self.args.test_patch_size, self.args.test_step_size)
-            sr_list = torch.Tensor()
-            for lr_sub_index in range(len(lr_list)// n_parallel + 1):
+            sr_list = torch.Tensor().cuda()
+            for lr_sub_index in range(len(lr_list)// self.args.n_parallel + 1):
                 torch.cuda.empty_cache()
                 with torch.no_grad():
-                    sr_sub, feat, bit = self.model(lr_list[lr_sub_index* n_parallel: (lr_sub_index+1)*n_parallel], idx_scale)
+                    sr_sub, feat, bit = self.model(lr_list[lr_sub_index* self.args.n_parallel: (lr_sub_index+1)*self.args.n_parallel], idx_scale)
                     sr_sub = utility.quantize(sr_sub, self.args.rgb_range)
-                sr_list = torch.cat([sr_list, sr_sub.cpu()])
+                sr_list = torch.cat([sr_list, sr_sub])
                 average_bit = bit.mean() / self.num_quant_modules
-                patch_idx_w = patch_idx % patch_w
-                patch_idx_h = patch_idx // patch_w
-                patch_bit[patch_idx_h, patch_idx_w] = average_bit
-
                 tot_bit_image += average_bit
-                print('{:2d} {:2d}: [avg bits: {:.2f}]'.format(patch_idx_h, patch_idx_w, average_bit))
                 patch_idx += 1
-            sr = utility.combine_parallel(sr_list, num_h, num_w, h, w, self.args.test_patch_size, self.args.test_step_size, self.scale[0])
+            sr = utility.combine(sr_list, num_h, num_w, h, w, self.args.test_patch_size, self.args.test_step_size, self.scale[0])
         else:
             lr_list, num_h, num_w, h, w = utility.crop(lr, self.args.test_patch_size, self.args.test_step_size)
             sr_list = []
@@ -343,12 +322,7 @@ class Trainer():
                     sr_sub = utility.quantize(sr_sub, self.args.rgb_range)
                 sr_list.append(sr_sub)
                 average_bit = bit.mean() / self.num_quant_modules
-                patch_idx_w = patch_idx % patch_w
-                patch_idx_h = patch_idx // patch_w
-                patch_bit[patch_idx_h, patch_idx_w] = average_bit
-
                 tot_bit_image += average_bit
-                print('{:2d} {:2d}: [avg bits: {:.2f}]'.format(patch_idx_h, patch_idx_w, average_bit))
                 patch_idx += 1
             sr = utility.combine(sr_list, num_h, num_w, h, w, self.args.test_patch_size, self.args.test_step_size, self.scale[0])
 
@@ -359,6 +333,7 @@ class Trainer():
     def test(self):
         torch.set_grad_enabled(False)
         
+        # if True:
         if self.epoch > 1 or self.args.test_only:
             self.ckp.write_log('\nEvaluation:')
             self.ckp.add_log(
@@ -438,6 +413,7 @@ class Trainer():
                         
                             if self.args.test_patch:
                                 sr, feat, bit = self.patch_inference(self.model, lr, idx_scale)
+                                if self.args.n_parallel!=1: hr = hr[:, :, :lr.shape[2]*self.scale[0], :lr.shape[2]*self.scale[0]] 
                                 img_bit = bit.item()
                             else:
                                 with torch.no_grad():
@@ -483,7 +459,7 @@ class Trainer():
             
             # save models
             if not self.args.test_only:
-                self.ckp.save(self, self.epoch, is_best=(best[1][0, 0] + 1 == self.epoch))
+                self.ckp.save(self, self.epoch, is_best=(best[1][0, 0] + 1 == self.epoch -1))
 
         torch.set_grad_enabled(True) 
 

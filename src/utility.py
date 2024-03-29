@@ -92,7 +92,8 @@ class checkpoint():
         if not args.load:
             if not args.save:
                 args.save = now
-            self.dir = os.path.join('..', 'experiment', '{}_sd{}'.format(args.save, args.seed))
+            # self.dir = os.path.join('..', 'experiment', '{}_sd{}'.format(args.save, args.seed))
+            self.dir = os.path.join('..', 'experiment', '{}'.format(args.save))
         else:
             self.dir = os.path.join('..', 'experiment', args.load)
             if os.path.exists(self.dir):
@@ -127,10 +128,9 @@ class checkpoint():
 
     def save(self, trainer, epoch, is_best=False):
         trainer.model.save(self.get_path('model'), epoch, is_best=is_best)
-        trainer.loss.plot_loss(self.dir, epoch)
         
-        self.plot_bit(epoch)
-        self.plot_psnr(epoch)
+        # self.plot_bit(epoch)
+        # self.plot_psnr(epoch)
 
     def add_log(self, log):
         self.log = torch.cat([self.log, log])
@@ -331,7 +331,6 @@ def crop(img, crop_sz, step):
     b, c, h, w = img.shape
     h_space = np.arange(0, max(h - crop_sz,0) + 1, step)
     w_space = np.arange(0, max(w - crop_sz,0) + 1, step)
-    index = 0
     num_h = 0
     lr_list=[]
     for x in h_space:
@@ -339,17 +338,13 @@ def crop(img, crop_sz, step):
         num_w = 0
         for y in w_space:
             num_w += 1
-            index += 1
-            if x == h_space[-1]: # include margin in bottom border
-                if y == w_space[-1]:
-                    crop_img = img[:, :, x:h, y:w]
-                else:
-                    crop_img = img[:, :, x:h, y:y + crop_sz]
-            elif y == w_space[-1]: # include margin in right border
-                crop_img = img[:,:, x:x + crop_sz, y:w]
-            else:    
-                crop_img = img[:,:, x:x + crop_sz, y:y + crop_sz]
+            # remaining borders are NOT clipped
+            x_end = x + crop_sz if x != h_space[-1] else h
+            y_end = y + crop_sz if y != w_space[-1] else w
+
+            crop_img = img[:,:, x : x_end, y : y_end]
             lr_list.append(crop_img)
+
     return lr_list, num_h, num_w, h, w
 
 def crop_parallel(img, crop_sz, step):
@@ -376,85 +371,21 @@ def crop_parallel(img, crop_sz, step):
 def combine(sr_list, num_h, num_w, h, w, patch_size, step, scale):
     index=0
     sr_img = torch.zeros((1, 3, h*scale, w*scale)).cuda()
-    s = int(((patch_size - step) / 2)*scale)
-    index1=0
-    index2=0
-    if num_h == 1:
-        if num_w ==1:
-            sr_img[:,:,:h*scale,:w*scale]+=sr_list[index]
-        else:
-            for j in range(num_w):
-                y0 = j*step*scale
-                if j==0:
-                    sr_img[:,:,:,y0:y0+s+step*scale]+=sr_list[index1][:,:,:,:s+step*scale]
-                elif j==num_w-1:
-                    sr_img[:,:,:,y0+s:w*scale]+=sr_list[index1][:,:,:,s:]
-                else:
-                    sr_img[:,:,:,y0+s:y0+s+step*scale]+=sr_list[index1][:,:,:,s:s+step*scale]
-                index1+=1
-
-    elif num_w ==1:
-        for i in range(num_h):
-            x0 = i*step*scale
-            if i==0:
-                sr_img[:,:,x0:x0+s+step*scale,:]+=sr_list[index2][:,:,:s+step*scale,:]
-            elif i==num_h-1:
-                sr_img[:,:,x0+s:h*scale,:]+=sr_list[index2][:,:,s:,:]
-            else:
-                sr_img[:,:,x0+s:x0+s+step*scale,:]+=sr_list[index2][:,:,s:s+step*scale,:]
-            index2+=1
-
-    else:
-        for i in range(num_h):
-            for j in range(num_w):
-                x0 = i*step*scale
-                y0 = j*step*scale
-
-                if i==0:
-                    if j==0:
-                        sr_img[:,:,x0:x0+s+step*scale,y0:y0+s+step*scale]+=sr_list[index][:,:,:s+step*scale, :s+step*scale]
-                    elif j==num_w-1:
-                        sr_img[:,:,x0:x0+s+step*scale,y0+s:w*scale]+=sr_list[index][:,:,:s+step*scale,s:]
-                    else:
-                        sr_img[:,:,x0:x0+s+step*scale,y0+s:y0+s+step*scale]+=sr_list[index][:,:,:s+step*scale, s:s+step*scale]
-                elif j==0:
-                    if i==num_h-1:
-                        sr_img[:,:,x0+s:h*scale,y0:y0+s+step*scale]+=sr_list[index][:,:,s:,:s+step*scale]
-                    else:
-                        sr_img[:,:,x0+s:x0+s+step*scale,y0:y0+s+step*scale]+=sr_list[index][:,:,s:s+step*scale, :s+step*scale]
-                elif i==num_h-1:
-                    if j==num_w-1:
-                        sr_img[:,:,x0+s:h*scale,y0+s:w*scale]+=sr_list[index][:,:,s:,s:]
-                    else:
-                        sr_img[:,:,x0+s:h*scale,y0+s:y0+s+step*scale]+=sr_list[index][:,:,s:,s:s+step*scale]
-                elif j==num_w-1:
-                    sr_img[:,:,x0+s:x0+s+step*scale,y0+s:w*scale]+=sr_list[index][:,:,s:s+step*scale,s:]
-                else:
-                    sr_img[:,:,x0+s:x0+s+step*scale,y0+s:y0+s+step*scale]+=sr_list[index][:,:,s:s+step*scale, s:s+step*scale]
-                
-                index+=1
-
-    return sr_img
-
-
-def combine_parallel(sr_list, num_h, num_w, h, w, patch_size, step, scale):
-    # remaining borders are clipped
-    index=0
-    w = w * scale
-    h = h * scale
-    patch_size = patch_size * scale
     step = step * scale
+    patch_size = patch_size * scale
 
-    sr_img = torch.zeros((1, 3, h, w)).to(sr_list[0].device)
-    for i in range(num_h):
-        for j in range(num_w):
-            sr_img[:, :, i*step:i*step+patch_size, j*step:j*step+patch_size] += sr_list[index]
-            index+=1
+    for x in range(num_h):
+        for y in range(num_w):
+            x_patch_size = sr_list[index].shape[2]
+            y_patch_size = sr_list[index].shape[3]
+            sr_img[:, :, x*step : x*step+x_patch_size, y*step : y*step+y_patch_size] += sr_list[index]
+            index += 1
 
     # mean the overlap region
-    for j in range(1,num_w):
-        sr_img[:, :, :, j*step:j*step+(patch_size-step)]/=2
-    for i in range(1,num_h):
-        sr_img[:, :, i*step:i*step+(patch_size-step), :]/=2
+    for x in range(1, num_h):
+        sr_img[:, :, x*step : x*step+ (patch_size - step), :]/=2
+    for y in range(1, num_w):
+        sr_img[:, :, :, y*step : y*step+ (patch_size - step)]/=2
 
     return sr_img
+

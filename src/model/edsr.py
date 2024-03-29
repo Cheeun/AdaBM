@@ -97,13 +97,13 @@ class EDSR(nn.Module):
                 bit_img_soft = (image_grad - (self.measure_u + self.measure_l)/2) * (2/(self.measure_u - self.measure_l))
                 bit_img_soft = self.tanh(bit_img_soft)
                 bit_img_hard = (image_grad < self.measure_l) * (-1.0) + (image_grad >= self.measure_l) * (image_grad <= self.measure_u) * (0.0) + (image_grad> self.measure_u) *(1.0) 
-                bit_img = bit_img_soft - bit_img_soft.detach() + bit_img_hard.detach()# the order matters
+                bit_img = bit_img_soft - bit_img_soft.detach() + bit_img_hard.detach() # the order matters
                 bit_img = bit_img.view(bit_img.shape[0], 1, 1, 1)
             
         x = self.sub_mean(x)
-        bit_fq = torch.zeros(x.shape[0]).cuda()
         
         if self.args.fq:
+            bit_fq = torch.zeros(x.shape[0]).cuda()
             x, bit_fq= self.head([x, bit_fq])
 
         else:

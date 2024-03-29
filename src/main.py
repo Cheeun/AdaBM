@@ -3,7 +3,6 @@ import torch.nn as nn
 import utility
 import data
 import model
-import loss
 from option import args
 from trainer import Trainer
 
@@ -23,12 +22,10 @@ torch.cuda.manual_seed_all(args.seed) # multi GPU
 checkpoint = utility.checkpoint(args)
 
 if checkpoint.ok:
-    loader = data.Data(args)
-    _model = model.Model(args, checkpoint)
-    _loss = loss.Loss(args, checkpoint) if not args.test_only else None
-    
     exp_start_time = time.time()
-    t = Trainer(args, loader, _model, _loss, checkpoint)
+    _loader = data.Data(args)
+    _model = model.Model(args, checkpoint)
+    t = Trainer(args, _loader, _model, checkpoint)
     
     # t.test_teacher()
     while not t.terminate():

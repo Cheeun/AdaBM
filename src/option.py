@@ -47,7 +47,6 @@ parser.add_argument('--no_augment', action='store_true',
 # Model specifications
 parser.add_argument('--model', default='EDSR',
                     help='model name')
-
 parser.add_argument('--act', type=str, default='relu',
                     help='activation function')
 parser.add_argument('--pre_train', type=str, default='',
@@ -97,31 +96,14 @@ parser.add_argument('--gan_k', type=int, default=1,
                     help='k value for adversarial loss')
 
 # Optimization specifications
-parser.add_argument('--lr', type=float, default=1e-4,
-                    help='learning rate')
-parser.add_argument('--decay', type=str, default='150',
-                    help='learning rate decay type')
-parser.add_argument('--gamma', type=float, default=0.5,
+parser.add_argument('--step', type=int, default='1',
+                    help='learning rate step size')
+parser.add_argument('--gamma', type=float, default=0.9,
                     help='learning rate decay factor for step decay')
-parser.add_argument('--optimizer', default='ADAM',
-                    choices=('SGD', 'ADAM', 'RMSprop'),
-                    help='optimizer to use (SGD | ADAM | RMSprop)')
-parser.add_argument('--momentum', type=float, default=0.9,
-                    help='SGD momentum')
 parser.add_argument('--betas', type=tuple, default=(0.9, 0.999),
                     help='ADAM beta')
 parser.add_argument('--epsilon', type=float, default=1e-8,
                     help='ADAM epsilon for numerical stability')
-parser.add_argument('--weight_decay', type=float, default=0,
-                    help='weight decay')
-parser.add_argument('--gclip', type=float, default=0,
-                    help='gradient clipping threshold (0 = no clipping)')
-
-# Loss specifications
-parser.add_argument('--loss', type=str, default='1*L1',
-                    help='loss function configuration')
-parser.add_argument('--skip_threshold', type=float, default='1e8',
-                    help='skipping batch that has large error')
 
 # Log specifications
 parser.add_argument('--save', type=str, default='test',

@@ -30,7 +30,8 @@ class Data:
             train_dataset = MyConcatDataset(datasets)
             indices = random.sample(range(0, len(train_dataset)), args.num_data) 
             # sampled over (train_dataset[0]=001.png~train_dataset[799]=800.png)
-            print('Indices of sampled data...')
+
+            print('Indices of {} sampled data...'.format(len(indices)))
             print(indices)
 
             train_dataset_sampled = data.Subset(train_dataset, indices)

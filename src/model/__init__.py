@@ -45,7 +45,6 @@ class Model(nn.Module):
 
         if self.training:
             if self.n_GPUs > 1:
-            # if self.n_GPUs > 1 and not init:
                 return P.data_parallel(self.model, x, range(self.n_GPUs))
             else:
                 return self.model(x)
