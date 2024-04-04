@@ -18,7 +18,7 @@ torch.backends.cudnn.benchmark=False
 numpy.random.seed(args.seed)
 random.seed(args.seed)
 torch.cuda.manual_seed(args.seed)
-torch.cuda.manual_seed_all(args.seed) # multi GPU
+torch.cuda.manual_seed_all(args.seed)
 checkpoint = utility.checkpoint(args)
 
 if checkpoint.ok:

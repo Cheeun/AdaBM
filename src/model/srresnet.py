@@ -4,7 +4,6 @@ import torch.nn as nn
 import math
 from model import quantize
 import kornia as K
-# from torchvision.utils import save_image
 
 def make_model(args, parent=False):
     return SRResNet(args)
