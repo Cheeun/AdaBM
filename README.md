@@ -1,5 +1,5 @@
 # AdaBM
-This repository includes the official implementation of the paper [**AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution**](TBD) (CVPR2024).
+This repository includes the official implementation of the paper [**AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution**](https://arxiv.org/abs/2404.03296) (CVPR2024).
 
 
 <!-- [arXiv](TBD) | [BibTeX](#bibtex) -->
@@ -69,17 +69,19 @@ More running scripts can be found in `run.sh`.
 ## Comments
 Our implementation is based on [EDSR(PyTorch)](https://github.com/thstkdgus35/EDSR-PyTorch).
 
-<!-- #### Coming Soon...
- - [ ] remove hr directory -->
+#### Coming Soon...
+ - [ ] parallel patch inference
 
 ## BibTeX
 If you found our implementation useful, please consider citing our paper:
 ```
-@InProceedings{Hong_2024_CVPR,
-    author    = {Cheeun Hong and Kyoung Mu Lee},
-    title     = {AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution},
-    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-    year      = {2024}
+@misc{hong2024adabm,
+      title={AdaBM: On-the-Fly Adaptive Bit Mapping for Image Super-Resolution}, 
+      author={Cheeun Hong and Kyoung Mu Lee},
+      year={2024},
+      eprint={2404.03296},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
 }
 ```
 
