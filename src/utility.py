@@ -225,7 +225,6 @@ class checkpoint():
                 )
 
             postfix = ('', 'LR', 'HR')
-            # postfix = ('SR', 'LR', 'HR')
             for v, p in zip(save_list, postfix):
                 normalized = v[0].mul(255 / self.args.rgb_range)
                 tensor_cpu = normalized.byte().permute(1, 2, 0).cpu()
