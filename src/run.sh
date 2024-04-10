@@ -47,8 +47,9 @@ edsr_eval() {
     --imgwise --layerwise \
     --test_only \
     --save edsrbaseline_x$scale/w$3a$2-adabm-nonfq \
-    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-adabm-nonfq/model/checkpoint.pt \
     --test_patch --test_patch_size 96 --test_step_size 96 \
+    --pre_train ../pretrained_model/edsr_baseline_x$scale-w$3a$2-adabm-nonfq.pt \
+    # --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-adabm-nonfq/model/checkpoint.pt \
     # --save_results \
 }
 
@@ -59,10 +60,11 @@ edsr_fq_eval() {
     --data_test Set5+Set14+B100+Urban100 --dir_data $DATA_DIR \
     --quantize_a $2 --quantize_w $3 \
     --imgwise --layerwise \
+    --fq \
     --test_only \
     --save edsrbaseline_x$scale/w$3a$2-adabm-fq-test \
-    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-adabm-fq/model/checkpoint.pt \
-    --fq \
+    --pre_train ../pretrained_model/edsr_baseline_x$scale-w$3a$2-adabm-fq.pt \
+    # --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-adabm-fq/model/checkpoint.pt \
     # --save_results \
 }
 
@@ -75,10 +77,11 @@ edsr_fq_eval_own() {
     --imgwise --layerwise \
     --test_only \
     --save edsrbaseline_x$scale/w$3a$2-adabm-fq-test \
-    --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-adabm-fq/model/checkpoint.pt \
     --fq \
     --test_patch --test_patch_size 96 --test_step_size 96 \
     --test_own '/dir/to/own/test/img' \
+    --pre_train ../pretrained_model/edsr_baseline_x$scale-w$3a$2-adabm-fq.pt \
+    # --pre_train ../experiment/edsrbaseline_x$scale/w$3a$2-adabm-fq/model/checkpoint.pt \
     # --save_results \
 }
 
@@ -107,9 +110,10 @@ rdn_fq_eval(){
     --quantize_a $2 --quantize_w $3 \
     --imgwise --layerwise \
     --test_only \
-    --save rdn_x$scale/w$3a$2-adabm-fq-test \
-    --pre_train ../experiment/rdn_x$scale/w$3a$2-adabm-fq/model/checkpoint.pt \
     --fq \
+    --save rdn_x$scale/w$3a$2-adabm-fq-test \
+    --pre_train ../pretrained_model/rdn_x$scale-w$3a$2-adabm-fq.pt \
+    # --pre_train ../experiment/rdn_x$scale/w$3a$2-adabm-fq/model/checkpoint.pt \
     # --save_results \
 }
 
@@ -140,8 +144,9 @@ srresnet_eval() {
     --imgwise --layerwise \
     --test_only \
     --save srresnet_x$scale/w$3a$2-adabm-nonfq-test \
-    --pre_train ../experiment/srresnet_x$scale/w$3a$2-adabm-nonfq/model/checkpoint.pt \
     --test_patch --test_patch_size 96 --test_step_size 96 \
+    --pre_train ../pretrained_model/srresnet_x$scale-w$3a$2-adabm-nonfq.pt \
+    # --pre_train ../experiment/srresnet_x$scale/w$3a$2-adabm-nonfq/model/checkpoint.pt \
     # --save_results \
 }
 
